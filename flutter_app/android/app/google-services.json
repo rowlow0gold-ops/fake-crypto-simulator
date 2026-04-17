@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "956349224619",
+    "project_id": "fakecrypto-1aa9e",
+    "storage_bucket": "fakecrypto-1aa9e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:956349224619:android:90fcb0a524f479117c49ee",
+        "android_client_info": {
+          "package_name": "com.fakecrypto.fake_crypto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4xqDuVz2ofiVrCRu5UeWZ1l6EVg51v88"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

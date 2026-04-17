@@ -1,0 +1,24 @@
+name: fake_crypto
+description: Fake-money crypto trading app that looks like a real exchange.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+  intl: ^0.19.0
+  fl_chart: ^0.69.0
+  web_socket_channel: ^3.0.1
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
