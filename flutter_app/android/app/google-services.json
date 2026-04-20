@@ -12,7 +12,20 @@
           "package_name": "com.fakecrypto.fake_crypto"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "956349224619-isqeu8jsh1e3chtfgbgc4gsfpicdk0d1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fakecrypto.fake_crypto",
+            "certificate_hash": "ed297af18828fecdd9bdabaadb6d129a3888f1ec"
+          }
+        },
+        {
+          "client_id": "956349224619-30gto9lp5j2rsdlmdqoqm52j35g2m1db.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC4xqDuVz2ofiVrCRu5UeWZ1l6EVg51v88"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "956349224619-30gto9lp5j2rsdlmdqoqm52j35g2m1db.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

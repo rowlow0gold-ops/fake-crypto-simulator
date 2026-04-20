@@ -110,14 +110,20 @@ class Transaction {
 /// `take` fires when price rises to/above [triggerPrice].
 enum LimitKind { stop, take }
 
+/// Reservation: buy or sell at a target price.
+/// `above` = trigger when price >= target, `below` = trigger when price <= target.
+enum ReservationDir { above, below }
+
 class LimitOrder {
   final String id;
   final String coinId;
   final String symbol;
   final LimitKind kind;
   final double triggerPrice;
-  final double amount; // coin units to sell when triggered
+  final double amount; // coin units to sell/buy when triggered
   final DateTime createdAt;
+  final Side side; // buy or sell
+  final ReservationDir direction; // above or below trigger
 
   LimitOrder({
     required this.id,
@@ -127,6 +133,8 @@ class LimitOrder {
     required this.triggerPrice,
     required this.amount,
     required this.createdAt,
+    this.side = Side.sell,
+    this.direction = ReservationDir.below,
   });
 
   Map<String, dynamic> toJson() => {
@@ -137,6 +145,8 @@ class LimitOrder {
         'triggerPrice': triggerPrice,
         'amount': amount,
         'createdAt': createdAt.millisecondsSinceEpoch,
+        'side': side.name,
+        'direction': direction.name,
       };
 
   factory LimitOrder.fromJson(Map<String, dynamic> j) => LimitOrder(
@@ -147,6 +157,10 @@ class LimitOrder {
         triggerPrice: (j['triggerPrice'] as num).toDouble(),
         amount: (j['amount'] as num).toDouble(),
         createdAt: DateTime.fromMillisecondsSinceEpoch(j['createdAt']),
+        side: j['side'] != null ? Side.values.byName(j['side']) : Side.sell,
+        direction: j['direction'] != null
+            ? ReservationDir.values.byName(j['direction'])
+            : (j['kind'] == 'stop' ? ReservationDir.below : ReservationDir.above),
       );
 }
 

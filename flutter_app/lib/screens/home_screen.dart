@@ -12,7 +12,8 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
-    final a = s.account;
+    // Use activeAccount so the portfolio shows game wallet during a game.
+    final a = s.activeAccount ?? s.account;
     if (a == null) return const SizedBox.shrink();
 
     final usd = NumberFormat.currency(locale: 'en_US', symbol: '\$');
@@ -21,6 +22,7 @@ class HomeScreen extends StatelessWidget {
     final pnl = portfolio - start;
     final pnlPct = start == 0 ? 0 : (pnl / start) * 100;
     final up = pnl >= 0;
+    final isGameMode = s.inGame && s.gameStatus == 'active';
 
     final holdings = a.holdings.values.where((h) {
       final available = s.availableToSell(h.coinId);
@@ -34,17 +36,41 @@ class HomeScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Game mode banner
+          if (isGameMode)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.sports_esports, color: AppColors.accent, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Game mode active — showing your game wallet',
+                      style: TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.card,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: isGameMode ? AppColors.accent.withOpacity(0.4) : AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Portfolio value', style: TextStyle(color: AppColors.dim)),
+                Text(isGameMode ? 'Game portfolio' : 'Portfolio value',
+                    style: const TextStyle(color: AppColors.dim)),
                 const SizedBox(height: 4),
                 Text(usd.format(portfolio),
                     style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700)),
@@ -64,13 +90,18 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const Text('Holdings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(isGameMode ? 'Game holdings' : 'Holdings',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           if (holdings.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text("You don't own any coins yet. Open the Market tab to buy some.",
-                  style: TextStyle(color: AppColors.dim)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                isGameMode
+                    ? "No holdings in your game wallet yet. Go trade!"
+                    : "You don't own any coins yet. Open the Market tab to buy some.",
+                style: const TextStyle(color: AppColors.dim),
+              ),
             ),
           ...holdings.map((h) {
             final meta = s.metaOf(h.coinId);

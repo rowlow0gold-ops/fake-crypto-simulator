@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'firebase_options.dart';
+import 'screens/game_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/market_screen.dart';
@@ -22,8 +25,9 @@ void showAppSnack(String msg, {Color? color}) {
     ));
 }
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const FakeCryptoApp());
 }
 
@@ -91,6 +95,7 @@ class _ShellState extends State<_Shell> {
   static const _pages = <Widget>[
     HomeScreen(),
     MarketScreen(),
+    GameScreen(),
     HistoryScreen(),
     SettingsScreen(),
   ];
@@ -113,6 +118,10 @@ class _ShellState extends State<_Shell> {
               icon: Icon(Icons.trending_up_outlined),
               selectedIcon: Icon(Icons.trending_up, color: AppColors.accent),
               label: 'Market'),
+          NavigationDestination(
+              icon: Icon(Icons.sports_esports_outlined),
+              selectedIcon: Icon(Icons.sports_esports, color: AppColors.accent),
+              label: 'Play'),
           NavigationDestination(
               icon: Icon(Icons.receipt_long_outlined),
               selectedIcon: Icon(Icons.receipt_long, color: AppColors.accent),

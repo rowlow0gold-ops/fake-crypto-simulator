@@ -12,8 +12,8 @@ class MarketScreen extends StatefulWidget {
   State<MarketScreen> createState() => _MarketScreenState();
 }
 
-enum _SortKey { volume, change, price, symbol }
-enum _Filter { all, gainers, losers, holdings }
+enum _SortKey { volume, change, volatility, price, symbol }
+enum _Filter { all, favorites, gainers, losers, holdings }
 
 class _MarketScreenState extends State<MarketScreen> {
   bool _loading = false;
@@ -24,6 +24,7 @@ class _MarketScreenState extends State<MarketScreen> {
   _SortKey _sort = _SortKey.volume;
   bool _sortDesc = true;
   _Filter _filter = _Filter.all;
+  final _scrollCtrl = ScrollController();
 
   @override
   void initState() {
@@ -34,7 +35,15 @@ class _MarketScreenState extends State<MarketScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _scrollToTop() {
+    if (_scrollCtrl.hasClients) {
+      _scrollCtrl.animateTo(0,
+          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    }
   }
 
   Widget _filterChip(String label, bool active, VoidCallback onTap) {
@@ -68,14 +77,17 @@ class _MarketScreenState extends State<MarketScreen> {
       padding: const EdgeInsets.only(right: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
-        onTap: () => setState(() {
-          if (_sort == key) {
-            _sortDesc = !_sortDesc;
-          } else {
-            _sort = key;
-            _sortDesc = true;
-          }
-        }),
+        onTap: () {
+          setState(() {
+            if (_sort == key) {
+              _sortDesc = !_sortDesc;
+            } else {
+              _sort = key;
+              _sortDesc = true;
+            }
+          });
+          _scrollToTop();
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -145,9 +157,10 @@ class _MarketScreenState extends State<MarketScreen> {
     int cmp(num a, num b) => _sortDesc ? b.compareTo(a) : a.compareTo(b);
     rows.sort((a, b) {
       switch (_sort) {
-        case _SortKey.volume: return cmp(a.vol, b.vol);
-        case _SortKey.change: return cmp(a.change, b.change);
-        case _SortKey.price:  return cmp(a.price, b.price);
+        case _SortKey.volume:     return cmp(a.vol, b.vol);
+        case _SortKey.change:     return cmp(a.change, b.change);
+        case _SortKey.volatility: return cmp(a.change.abs(), b.change.abs());
+        case _SortKey.price:      return cmp(a.price, b.price);
         case _SortKey.symbol:
           return _sortDesc
               ? b.symbol.compareTo(a.symbol)
@@ -158,6 +171,7 @@ class _MarketScreenState extends State<MarketScreen> {
     Iterable<dynamic> byFilter = rows;
     switch (_filter) {
       case _Filter.all: break;
+      case _Filter.favorites: byFilter = rows.where((r) => s.isFavorite(r.id)); break;
       case _Filter.gainers:  byFilter = rows.where((r) => r.change > 0); break;
       case _Filter.losers:   byFilter = rows.where((r) => r.change < 0); break;
       case _Filter.holdings: byFilter = rows.where((r) => holdingIds.contains(r.id)); break;
@@ -225,13 +239,15 @@ class _MarketScreenState extends State<MarketScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 _filterChip('All', _filter == _Filter.all,
-                    () => setState(() => _filter = _Filter.all)),
+                    () { setState(() => _filter = _Filter.all); _scrollToTop(); }),
+                _filterChip('Favorites', _filter == _Filter.favorites,
+                    () { setState(() => _filter = _Filter.favorites); _scrollToTop(); }),
                 _filterChip('Gainers', _filter == _Filter.gainers,
-                    () => setState(() => _filter = _Filter.gainers)),
+                    () { setState(() => _filter = _Filter.gainers); _scrollToTop(); }),
                 _filterChip('Losers', _filter == _Filter.losers,
-                    () => setState(() => _filter = _Filter.losers)),
+                    () { setState(() => _filter = _Filter.losers); _scrollToTop(); }),
                 _filterChip('Holdings', _filter == _Filter.holdings,
-                    () => setState(() => _filter = _Filter.holdings)),
+                    () { setState(() => _filter = _Filter.holdings); _scrollToTop(); }),
               ],
             ),
           ),
@@ -241,10 +257,11 @@ class _MarketScreenState extends State<MarketScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               children: [
-                _sortChip('Volume',  _SortKey.volume),
-                _sortChip('24h %',   _SortKey.change),
-                _sortChip('Price',   _SortKey.price),
-                _sortChip('Name',    _SortKey.symbol),
+                _sortChip('Volume',     _SortKey.volume),
+                _sortChip('24h %',      _SortKey.change),
+                _sortChip('Volatility', _SortKey.volatility),
+                _sortChip('Price',      _SortKey.price),
+                _sortChip('Name',       _SortKey.symbol),
               ],
             ),
           ),
@@ -267,10 +284,12 @@ class _MarketScreenState extends State<MarketScreen> {
                       ),
                     ])
                   : ListView.builder(
+                      controller: _scrollCtrl,
                       itemCount: filtered.length,
                       itemBuilder: (ctx, i) {
                         final r = filtered[i];
                         final up = r.change >= 0;
+                        final isFav = s.isFavorite(r.id);
                         final priceFmt = NumberFormat.currency(
                             locale: 'en_US',
                             symbol: '\$',
@@ -298,8 +317,19 @@ class _MarketScreenState extends State<MarketScreen> {
                             ),
                             child: Row(
                               children: [
+                                GestureDetector(
+                                  onTap: () => s.toggleFavorite(r.id),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: Icon(
+                                      isFav ? Icons.star : Icons.star_border,
+                                      size: 18,
+                                      color: isFav ? AppColors.accent : AppColors.dim,
+                                    ),
+                                  ),
+                                ),
                                 SizedBox(
-                                  width: 30,
+                                  width: 24,
                                   child: Text(
                                     '${i + 1}',
                                     style: const TextStyle(

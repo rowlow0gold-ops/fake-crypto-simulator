@@ -186,17 +186,15 @@ class _TradeScreenState extends State<TradeScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.dim, fontSize: 12),
             ),
-            if (owned > 0) ...[
-              const SizedBox(height: 24),
-              _limitsSection(context, s, price, owned),
-            ],
+            const SizedBox(height: 24),
+            _limitsSection(context, s, price, owned, availCash),
           ],
         ),
       ),
     );
   }
 
-  Widget _limitsSection(BuildContext context, AppState s, double price, double owned) {
+  Widget _limitsSection(BuildContext context, AppState s, double price, double owned, double cash) {
     final limits = s.limitsFor(widget.coinId);
     final priceFmt = NumberFormat.currency(
         locale: 'en_US', symbol: '\$', decimalDigits: price > 10 ? 2 : 6);
@@ -210,11 +208,11 @@ class _TradeScreenState extends State<TradeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Auto-sell triggers',
+          const Text('Reservations & triggers',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           const Text(
-            'Stop-loss fires if price drops to the trigger. Take-profit fires if price rises to it.',
+            'Auto buy/sell when the price hits your target.',
             style: TextStyle(color: AppColors.dim, fontSize: 12),
           ),
           const SizedBox(height: 12),
@@ -225,24 +223,27 @@ class _TradeScreenState extends State<TradeScreen> {
                   style: TextStyle(color: AppColors.dim, fontSize: 13)),
             )
           else
-            ...limits.map((l) => Padding(
+            ...limits.map((l) {
+              final isBuy = l.side == Side.buy;
+              final label = isBuy
+                  ? 'BUY'
+                  : l.kind == LimitKind.stop
+                      ? 'STOP'
+                      : 'TAKE';
+              final color = isBuy ? AppColors.accent : (l.kind == LimitKind.stop ? AppColors.red : AppColors.green);
+              return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: l.kind == LimitKind.stop
-                              ? AppColors.red.withOpacity(0.2)
-                              : AppColors.green.withOpacity(0.2),
+                          color: color.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text(
-                          l.kind == LimitKind.stop ? 'STOP' : 'TAKE',
+                        child: Text(label,
                           style: TextStyle(
-                            color: l.kind == LimitKind.stop
-                                ? AppColors.red
-                                : AppColors.green,
+                            color: color,
                             fontWeight: FontWeight.w700,
                             fontSize: 11,
                           ),
@@ -261,23 +262,39 @@ class _TradeScreenState extends State<TradeScreen> {
                       ),
                     ],
                   ),
-                )),
+              );
+            }),
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: AppColors.cardAlt,
-                    side: BorderSide.none,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+              if (owned > 0) ...[
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: AppColors.cardAlt,
+                      side: BorderSide.none,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => _openLimitDialog(LimitKind.stop, price, owned),
+                    child: const Text('Stop-loss',
+                        style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w600, fontSize: 12)),
                   ),
-                  onPressed: () => _openLimitDialog(LimitKind.stop, price, owned),
-                  child: const Text('Set stop-loss',
-                      style: TextStyle(color: AppColors.red, fontWeight: FontWeight.w600)),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: AppColors.cardAlt,
+                      side: BorderSide.none,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => _openLimitDialog(LimitKind.take, price, owned),
+                    child: const Text('Take-profit',
+                        style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w600, fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Expanded(
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
@@ -285,9 +302,9 @@ class _TradeScreenState extends State<TradeScreen> {
                     side: BorderSide.none,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  onPressed: () => _openLimitDialog(LimitKind.take, price, owned),
-                  child: const Text('Set take-profit',
-                      style: TextStyle(color: AppColors.green, fontWeight: FontWeight.w600)),
+                  onPressed: () => _openBuyReservationDialog(price, cash),
+                  child: const Text('Buy at price',
+                      style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600, fontSize: 12)),
                 ),
               ),
             ],
@@ -378,6 +395,126 @@ class _TradeScreenState extends State<TradeScreen> {
             ),
           ],
         );
+      },
+    );
+  }
+
+  Future<void> _openBuyReservationDialog(double price, double cash) async {
+    final priceCtrl = TextEditingController(
+        text: (price * 0.9).toStringAsFixed(price > 10 ? 2 : 6));
+    final amtCtrl = TextEditingController(text: '0');
+    String dir = 'below'; // 'below' = buy when dips, 'above' = buy on breakout
+    final s = context.read<AppState>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setDlgState) {
+          return AlertDialog(
+            backgroundColor: AppColors.card,
+            title: const Text('Buy at price',
+                style: TextStyle(color: AppColors.text)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Auto-buy when price hits target.',
+                    style: TextStyle(color: AppColors.dim, fontSize: 12)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setDlgState(() => dir = 'below'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: dir == 'below' ? AppColors.accent : AppColors.cardAlt,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text('Buy on dip',
+                              style: TextStyle(
+                                color: dir == 'below' ? AppColors.bg : AppColors.text,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              )),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setDlgState(() => dir = 'above'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: dir == 'above' ? AppColors.accent : AppColors.cardAlt,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text('Buy on breakout',
+                              style: TextStyle(
+                                color: dir == 'above' ? AppColors.bg : AppColors.text,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              )),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('Target price (USD)',
+                    style: TextStyle(color: AppColors.dim, fontSize: 12)),
+                TextField(
+                  controller: priceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: AppColors.text),
+                ),
+                const SizedBox(height: 12),
+                Text('Amount (${widget.symbol}) to buy',
+                    style: const TextStyle(color: AppColors.dim, fontSize: 12)),
+                TextField(
+                  controller: amtCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: AppColors.text),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.dim)),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.bg,
+                ),
+                onPressed: () {
+                  final tp = double.tryParse(priceCtrl.text) ?? 0;
+                  final amt = double.tryParse(amtCtrl.text) ?? 0;
+                  if (tp <= 0) { _snack('Invalid price'); return; }
+                  if (amt <= 0) { _snack('Invalid amount'); return; }
+                  final cost = amt * tp;
+                  if (cost > cash * 1.01) { _snack('Not enough cash'); return; }
+                  s.addLimit(
+                    coinId: widget.coinId,
+                    symbol: widget.symbol,
+                    kind: dir == 'below' ? LimitKind.stop : LimitKind.take,
+                    triggerPrice: tp,
+                    amount: amt,
+                    side: Side.buy,
+                    direction: dir == 'below' ? ReservationDir.below : ReservationDir.above,
+                  );
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Set'),
+              ),
+            ],
+          );
+        });
       },
     );
   }
